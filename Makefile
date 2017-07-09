@@ -6,7 +6,7 @@ CC=clang
 IMAGEMAGICKVERSION=$(shell pkg-config MagickWand --modversion | grep -oE '^\s*[0-9]+')
 QDM=$(shell bc <<< "`pkg-config MagickWand --cflags | sed 's/.*-DMAGICKCORE_QUANTUM_DEPTH=\([0-9]*\).*/\1/;s/^/2^/'` - 1")
 
-CFLAGS = -c -Wall -Wextra -Wpedantic -Ilib/ $(shell pkg-config MagickWand --cflags) -DIMAGEMAGICKVERSION="$(IMAGEMAGICKVERSION)" -DQUANTUM_DEPTH_MAXSIZE="$(QDM)" -O2
+CFLAGS = -c -std=c11 -Wall -Wextra -Wpedantic -Ilib/ $(shell pkg-config MagickWand --cflags) -DIMAGEMAGICKVERSION="$(IMAGEMAGICKVERSION)" -DQUANTUM_DEPTH_MAXSIZE="$(QDM)" -O2
 LDFLAGS = $(shell pkg-config MagickWand --libs)
 
 SOURCES = src/main.c
