@@ -50,3 +50,9 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+
+# Makefile related
+farg.1
+
+# Valgrind and the like
+core.* vgcore.* callgrind.out.*

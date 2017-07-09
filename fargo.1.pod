@@ -1,0 +1,32 @@
+
+=head1 NAME
+
+fargo - Removes unseeable and ghost alpha from PNG images, optimized.
+
+=head1 SYNOPSIS
+
+fargo [-h -v -c -s] -i image.png -o output.png
+
+=head1 DESCRIPTION
+
+it's like farg, but better
+
+=head1 OPTIONS
+
+B<-h> Display a short help text.
+
+B<-i> E<lt>imageE<gt> The input image to optimize. This flag is required.
+
+B<-o> E<lt>outputE<gt> The output image. This flag is optional.
+
+B<-f> E<lt>factorE<gt> A number between 0 and 1 that changes the threshold of what is considered a "dirty" alpha. Higher is safer. Defaults to 0.95.
+
+B<-v> Enable verbose mode.
+
+B<-c> Enable clobber mode. Ignores output. Will automatically overwrite dirty alphas! DANGEROUS!
+
+B<-s> Run in a simulated mode. Won't automatically overwrite empty alphas. Safe!
+
+=head1 AUTHOR
+
+Daemon Lee Schmidt
