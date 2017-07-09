@@ -144,10 +144,12 @@ int main(int argc, char **argv) {
       printf("%s has an empty alpha, automatically removing and overwriting.\n",
              inputFile);
       if (!simulatedRun) {
-        status =
-            MagickSetImageAlphaChannel(magick_wand, DeactivateAlphaChannel);
+        // Deactivate "Matte" (Alpha channel)
+        status = MagickSetImageMatte(magick_wand, MagickFalse);
         if (status == MagickFalse)
           ThrowWandException(magick_wand);
+
+        // Write the cleaned image to disk.
         status = MagickWriteImage(magick_wand, inputFile);
       }
 
@@ -156,10 +158,13 @@ int main(int argc, char **argv) {
              inputFile);
       printf("\n");
       if (outputFile != NULL && !simulatedRun) {
-        status =
-            MagickSetImageAlphaChannel(magick_wand, DeactivateAlphaChannel);
+
+        // Deactivate "Matte" (Alpha channel)
+        status = MagickSetImageMatte(magick_wand, MagickFalse);
         if (status == MagickFalse)
           ThrowWandException(magick_wand);
+
+        // Write the cleaned image to disk.
         status = MagickWriteImage(magick_wand, outputFile);
       }
 
