@@ -154,9 +154,8 @@ int main(int argc, char **argv) {
       }
 
     } else if (finalMean > (QUANTUM_DEPTH_MAXSIZE * thresholdFactor)) {
-      printf("Mean: %f - %s - Probably a pointless alpha.", finalMean,
+      printf("Mean: %f - %s - Probably a pointless alpha.\n", finalMean,
              inputFile);
-      printf("\n");
       if (outputFile != NULL && !simulatedRun) {
 
         // Deactivate "Matte" (Alpha channel)
