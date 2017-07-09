@@ -96,6 +96,8 @@ int main(int argc, char **argv) {
     printf("Verbose mode on!\n");
     printf("Input File: %s\n", inputFile);
     printf("Output File: %s\n", outputFile);
+    printf("Threshold Factor: %f\n", thresholdFactor);
+
     if (simulatedRun) {
       printf("Simulated run on!\n");
     }
@@ -150,7 +152,6 @@ int main(int argc, char **argv) {
       }
 
     } else if (finalMean > (QUANTUM_DEPTH_MAXSIZE * thresholdFactor)) {
-      printf("%f\n", thresholdFactor);
       printf("Mean: %f - %s - Probably a pointless alpha.", finalMean,
              inputFile);
       printf("\n");
