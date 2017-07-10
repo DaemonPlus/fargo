@@ -149,7 +149,7 @@ int main(int argc, char **argv) {
 #endif
 
     if (finalMean == QUANTUM_DEPTH_MAXSIZE) {
-      printf("empty alpha, removing - %s.\n", inputFile);
+      printf("empty alpha, removing - %s\n", inputFile);
       if (!simulatedRun) {
         // Deactivate "Matte" (Alpha channel)
         status = MagickSetImageMatte(magick_wand, MagickFalse);
@@ -174,7 +174,7 @@ int main(int argc, char **argv) {
       }
 
     } else if (!quietMode) {
-      printf("needed alpha - mean: %f - %s -\n", finalMean, inputFile);
+      printf("needed alpha - mean: %f - %s\n", finalMean, inputFile);
     }
   }
   if (status == MagickFalse)
