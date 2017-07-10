@@ -23,7 +23,7 @@
 #endif
 
 #ifndef DEFAULTTHRESHOLDFACTOR
-#define DEFAULT 0.975
+#define DEFAULTTHRESHOLDFACTOR 0.975
 #endif
 
 #include <stdbool.h>
@@ -161,7 +161,7 @@ int main(int argc, char **argv) {
       }
 
     } else if (finalMean > (QUANTUM_DEPTH_MAXSIZE * thresholdFactor)) {
-      printf("pointless alpha - Mean: %f - %s\n", finalMean, inputFile);
+      printf("pointless alpha - mean: %f - %s\n", finalMean, inputFile);
       if (outputFile != NULL && !simulatedRun) {
 
         // Deactivate "Matte" (Alpha channel)
@@ -174,7 +174,7 @@ int main(int argc, char **argv) {
       }
 
     } else if (!quietMode) {
-      printf("needed alpha - Mean: %f - %s -\n", finalMean, inputFile);
+      printf("needed alpha - mean: %f - %s -\n", finalMean, inputFile);
     }
   }
   if (status == MagickFalse)
