@@ -25,3 +25,5 @@ cd fargo
 make
 sudo make install
 ```
+
+AUR package for Arch users: [fargo-git](https://aur.archlinux.org/packages/fargo-git/)
