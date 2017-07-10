@@ -29,7 +29,7 @@ B<-i> E<lt>imageE<gt> The input image to optimize. This flag is required.
 
 B<-o> E<lt>outputE<gt> The output image. This flag is optional.
 
-B<-f> E<lt>factorE<gt> A number between 0 and 1 that changes the threshold of what is considered a "dirty" alpha. Higher is safer. Defaults to 0.95.
+B<-f> E<lt>factorE<gt> A number between 0 and 1 that changes the threshold of what is considered a "dirty" alpha. Higher is safer. Defaults to 0.975.
 
 B<-v> Enable verbose mode.
 

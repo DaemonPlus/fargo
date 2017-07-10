@@ -22,6 +22,10 @@
 #include <MagickWand/MagickWand.h>
 #endif
 
+#ifndef DEFAULTTHRESHOLDFACTOR
+#define DEFAULT 0.975
+#endif
+
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -48,9 +52,10 @@ int main(int argc, char **argv) {
   bool clobber = false;
   bool simulatedRun = false;
   bool verbose = false;
-  double thresholdFactor = 0.95;
+  bool quietMode = false;
+  double thresholdFactor = DEFAULTTHRESHOLDFACTOR;
 
-  while ((opt = getopt(argc, argv, ":i:o:f:hvcs")) != -1) {
+  while ((opt = getopt(argc, argv, ":i:o:f:hvcsq")) != -1) {
     switch (opt) {
     case 'i':
       inputFile = optarg;
@@ -72,6 +77,9 @@ int main(int argc, char **argv) {
       break;
     case 's':
       simulatedRun = true;
+      break;
+    case 'q':
+      quietMode = true;
       break;
     default: // '?'
       displayHelp(argv);
@@ -141,8 +149,7 @@ int main(int argc, char **argv) {
 #endif
 
     if (finalMean == QUANTUM_DEPTH_MAXSIZE) {
-      printf("%s has an empty alpha, automatically removing and overwriting.\n",
-             inputFile);
+      printf("empty alpha, removing - %s.\n", inputFile);
       if (!simulatedRun) {
         // Deactivate "Matte" (Alpha channel)
         status = MagickSetImageMatte(magick_wand, MagickFalse);
@@ -154,8 +161,7 @@ int main(int argc, char **argv) {
       }
 
     } else if (finalMean > (QUANTUM_DEPTH_MAXSIZE * thresholdFactor)) {
-      printf("Mean: %f - %s - Probably a pointless alpha.\n", finalMean,
-             inputFile);
+      printf("pointless alpha - Mean: %f - %s\n", finalMean, inputFile);
       if (outputFile != NULL && !simulatedRun) {
 
         // Deactivate "Matte" (Alpha channel)
@@ -167,8 +173,8 @@ int main(int argc, char **argv) {
         status = MagickWriteImage(magick_wand, outputFile);
       }
 
-    } else {
-      printf("Mean: %f - %s - Needed alpha.\n", finalMean, inputFile);
+    } else if (!quietMode) {
+      printf("needed alpha - Mean: %f - %s -\n", finalMean, inputFile);
     }
   }
   if (status == MagickFalse)
@@ -181,9 +187,10 @@ int main(int argc, char **argv) {
 }
 
 int displayHelp(char **argv) {
-  fprintf(stderr,
-          "Usage: %s [-h -v -c -s] -i image.png -o output.png\nSee 'man fargo' "
-          "for more information.\n",
-          argv[0]);
+  fprintf(
+      stderr,
+      "Usage: %s [-h -v -c -s -q] -i image.png -o output.png\nSee 'man fargo' "
+      "for more information.\n",
+      argv[0]);
   exit(0);
 }
