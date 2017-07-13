@@ -1,11 +1,7 @@
 # Makefile for fargo - Licensed under GPL v3.0 - See LICENSE for more info
 
-# Beware of dark magic...
-IMAGEMAGICKVERSION=$(shell pkg-config MagickWand --modversion | grep -oE '^\s*[0-9]+')
-QDM=$(shell bc <<< "`pkg-config MagickWand --cflags | sed 's/.*-DMAGICKCORE_QUANTUM_DEPTH=\([0-9]*\).*/\1/;s/^/2^/'` - 1")
-
-CFLAGS = -c -std=c11 -Wall -Wextra -Wpedantic $(shell pkg-config MagickWand --cflags) -DIMAGEMAGICKVERSION="$(IMAGEMAGICKVERSION)" -DQUANTUM_DEPTH_MAXSIZE="$(QDM)" -O2
-LDFLAGS = $(shell pkg-config MagickWand --libs)
+CFLAGS = -c -std=c11 -Wall -Wextra -Wpedantic $(shell pkg-config vips --cflags)
+LDFLAGS = $(shell pkg-config vips --libs)
 
 SOURCES = src/main.c
 OBJECTS = $(SOURCES:.c=.o)

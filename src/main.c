@@ -16,32 +16,18 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#if IMAGEMAGICKVERSION == 6
-#include <wand/MagickWand.h>
-#else // assume it's 7+
-#include <MagickWand/MagickWand.h>
-#endif
+#include <vips/vips.h>
 
 #ifndef DEFAULTTHRESHOLDFACTOR
 #define DEFAULTTHRESHOLDFACTOR 0.975
 #endif
 
+#include <ctype.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
-
-#define ThrowWandException(wand)                                               \
-  {                                                                            \
-    char *description;                                                         \
-                                                                               \
-    ExceptionType severity;                                                    \
-                                                                               \
-    description = MagickGetException(wand, &severity);                         \
-    (void)fprintf(stderr, "%s %s %lu %s\n", GetMagickModule(), description);   \
-    description = (char *)MagickRelinquishMemory(description);                 \
-    exit(-1);                                                                  \
-  }
 
 int displayHelp(char **argv);
 
@@ -59,6 +45,14 @@ int main(int argc, char **argv) {
     switch (opt) {
     case 'i':
       inputFile = optarg;
+      struct stat buffer;
+      if (!(stat(inputFile, &buffer) == 0) || (!(S_ISREG(buffer.st_mode))))
+        exit(-1);
+      char *inFileExt = strrchr(optarg, '.');
+      for (int i = 0; inFileExt[i] != '\0'; i++)
+        inFileExt[i] = tolower(inFileExt[i]);
+      if (!(strcmp(inFileExt, ".png") == 0))
+        exit(-1);
       break;
     case 'o':
       outputFile = optarg;
@@ -93,7 +87,7 @@ int main(int argc, char **argv) {
 
   if (thresholdFactor > 1 || thresholdFactor < 0) {
     printf("Threshold factor has to be in between 0 and 1!\n");
-    exit(0);
+    exit(-1);
   }
 
   if (clobber) {
@@ -114,75 +108,76 @@ int main(int argc, char **argv) {
     }
   }
 
-  MagickBooleanType status;
-  MagickWand *magick_wand;
-
-#if IMAGEMAGICKVERSION == 6
-  double doubleZeroMean = 0.0;
-  double doubleZeroStan = 0.0;
-  double *mean = &doubleZeroMean;
-  double *standard_deviation = &doubleZeroStan;
-#else
-  ChannelStatistics *channel_statistics = NULL;
-#endif
-
+  VipsImage *imageIn = NULL;
+  VipsImage *alphaChannel = NULL;
+  VipsImage *imageOut = NULL;
   double finalMean = 0.0; // ૮( ᵒ̌皿ᵒ̌ )ა
+  VipsInterpretation imInter = 0;
+
+  // Start vips
+  VIPS_INIT(argv[0]);
 
   // Read the image.
-  MagickWandGenesis();
-  magick_wand = NewMagickWand();
-  status = MagickReadImage(magick_wand, inputFile);
-  if (status == MagickFalse)
-    ThrowWandException(magick_wand);
+  imageIn = vips_image_new_from_file(inputFile, NULL);
 
   // Check if it even has an Alpha
-  if (MagickGetImageAlphaChannel(magick_wand)) {
-// ImageMagick version specific functions for getting the mean Alpha value.
-#if IMAGEMAGICKVERSION == 6
-    MagickGetImageChannelMean(magick_wand, OpacityChannel, mean,
-                              standard_deviation);
-    finalMean = *mean;
-#else
-    channel_statistics = MagickGetImageStatistics(magick_wand);
-    finalMean = channel_statistics[AlphaPixelChannel].mean;
-    MagickRelinquishMemory(channel_statistics);
-#endif
-
-    if (finalMean == QUANTUM_DEPTH_MAXSIZE) {
-      printf("empty alpha, removing - %s\n", inputFile);
-      if (!simulatedRun) {
-        // Deactivate "Matte" (Alpha channel)
-        status = MagickSetImageMatte(magick_wand, MagickFalse);
-        if (status == MagickFalse)
-          ThrowWandException(magick_wand);
-
-        // Write the cleaned image to disk.
-        status = MagickWriteImage(magick_wand, inputFile);
-      }
-
-    } else if (finalMean > (QUANTUM_DEPTH_MAXSIZE * thresholdFactor)) {
-      printf("pointless alpha - mean: %f - %s\n", finalMean, inputFile);
-      if (outputFile != NULL && !simulatedRun) {
-
-        // Deactivate "Matte" (Alpha channel)
-        status = MagickSetImageMatte(magick_wand, MagickFalse);
-        if (status == MagickFalse)
-          ThrowWandException(magick_wand);
-
-        // Write the cleaned image to disk.
-        status = MagickWriteImage(magick_wand, outputFile);
-      }
-
-    } else if (!quietMode) {
-      printf("needed alpha - mean: %f - %s\n", finalMean, inputFile);
-    }
+  if (!vips_image_hasalpha(imageIn)) {
+    exit(0);
   }
-  if (status == MagickFalse)
-    ThrowWandException(magick_wand);
+
+  imInter = vips_image_get_interpretation(imageIn);
+  switch (imInter) {
+  case VIPS_INTERPRETATION_sRGB:
+  case VIPS_INTERPRETATION_scRGB:
+    vips_extract_band(imageIn, &alphaChannel, 3, NULL);
+    vips_avg(alphaChannel, &finalMean, NULL);
+    finalMean = finalMean / 255;
+    break;
+  case VIPS_INTERPRETATION_B_W:
+    vips_extract_band(imageIn, &alphaChannel, 1, NULL);
+    vips_avg(alphaChannel, &finalMean, NULL);
+    finalMean = finalMean / 255;
+    break;
+  case VIPS_INTERPRETATION_RGB16:
+    vips_extract_band(imageIn, &alphaChannel, 3, NULL);
+    vips_avg(alphaChannel, &finalMean, NULL);
+    finalMean = finalMean / 65536;
+    break;
+  case VIPS_INTERPRETATION_GREY16:
+    vips_extract_band(imageIn, &alphaChannel, 1, NULL);
+    vips_avg(alphaChannel, &finalMean, NULL);
+    finalMean = finalMean / 65536;
+    break;
+  default:
+    exit(123);
+    break;
+  }
+
+  if (finalMean == 1) {
+    printf("empty alpha, removing - %s\n", inputFile);
+    if (!simulatedRun) {
+      // Deactivate alpha channel.
+      vips_flatten(imageIn, &imageOut, 0, NULL);
+
+      // Write the cleaned image to disk.
+      vips_image_write_to_file(imageOut, outputFile, NULL);
+    }
+  } else if (finalMean > thresholdFactor) {
+    printf("pointless alpha - mean: %f - %s\n", finalMean, inputFile);
+    if (outputFile != NULL && !simulatedRun) {
+      // Deactivate alpha channel.
+      vips_flatten(imageIn, &imageOut, 0, NULL);
+
+      // Write the cleaned image to disk.
+      vips_image_write_to_file(imageOut, outputFile, NULL);
+    }
+  } else if (!quietMode) {
+    printf("needed alpha - mean: %f - %s\n", finalMean, inputFile);
+  }
 
   // Clean up
-  magick_wand = DestroyMagickWand(magick_wand);
-  MagickWandTerminus();
+  vips_shutdown();
+
   return 0;
 }
 
