@@ -22,11 +22,9 @@
 #define DEFAULTTHRESHOLDFACTOR 0.975
 #endif
 
-#include <ctype.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <unistd.h>
 
 int displayHelp(char **argv);
@@ -45,14 +43,6 @@ int main(int argc, char **argv) {
     switch (opt) {
     case 'i':
       inputFile = optarg;
-      struct stat buffer;
-      if (!(stat(inputFile, &buffer) == 0) || (!(S_ISREG(buffer.st_mode))))
-        exit(-1);
-      char *inFileExt = strrchr(optarg, '.');
-      for (int i = 0; inFileExt[i] != '\0'; i++)
-        inFileExt[i] = tolower(inFileExt[i]);
-      if (!(strcmp(inFileExt, ".png") == 0))
-        exit(-1);
       break;
     case 'o':
       outputFile = optarg;
@@ -115,13 +105,16 @@ int main(int argc, char **argv) {
   VipsInterpretation imInter = 0;
 
   // Start vips
-  VIPS_INIT(argv[0]);
+  if (VIPS_INIT(argv[0]))
+    vips_error_exit(NULL);
 
   // Read the image.
-  imageIn = vips_image_new_from_file(inputFile, NULL);
+  if (!(imageIn = vips_image_new_from_file(inputFile, NULL)))
+    vips_error_exit(NULL);
 
   // Check if it even has an Alpha
   if (!vips_image_hasalpha(imageIn)) {
+    g_object_unref(imageIn);
     exit(0);
   }
 
@@ -149,9 +142,12 @@ int main(int argc, char **argv) {
     finalMean = finalMean / 65536;
     break;
   default:
-    exit(123);
+    exit(-1);
     break;
   }
+
+  // Done with the alpha channel
+  g_object_unref(alphaChannel);
 
   if (finalMean == 1) {
     printf("empty alpha, removing - %s\n", inputFile);
@@ -160,7 +156,9 @@ int main(int argc, char **argv) {
       vips_flatten(imageIn, &imageOut, 0, NULL);
 
       // Write the cleaned image to disk.
-      vips_image_write_to_file(imageOut, outputFile, NULL);
+      if (vips_image_write_to_file(imageOut, outputFile, NULL))
+        vips_error_exit(NULL);
+      g_object_unref(imageOut);
     }
   } else if (finalMean > thresholdFactor) {
     printf("pointless alpha - mean: %f - %s\n", finalMean, inputFile);
@@ -169,13 +167,16 @@ int main(int argc, char **argv) {
       vips_flatten(imageIn, &imageOut, 0, NULL);
 
       // Write the cleaned image to disk.
-      vips_image_write_to_file(imageOut, outputFile, NULL);
+      if (vips_image_write_to_file(imageOut, outputFile, NULL))
+        vips_error_exit(NULL);
+      g_object_unref(imageOut);
     }
   } else if (!quietMode) {
     printf("needed alpha - mean: %f - %s\n", finalMean, inputFile);
   }
 
   // Clean up
+  g_object_unref(imageIn);
   vips_shutdown();
 
   return 0;
