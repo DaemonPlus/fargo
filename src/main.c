@@ -150,7 +150,8 @@ int main(int argc, char **argv) {
   g_object_unref(alphaChannel);
 
   if (finalMean == 1) {
-    printf("empty alpha, removing - %s\n", inputFile);
+    if (!quietMode)
+      printf("empty alpha, removing - %s\n", inputFile);
     if (!simulatedRun) {
       // Deactivate alpha channel.
       vips_flatten(imageIn, &imageOut, 0, NULL);
@@ -161,7 +162,12 @@ int main(int argc, char **argv) {
       g_object_unref(imageOut);
     }
   } else if (finalMean > thresholdFactor) {
-    printf("pointless alpha - mean: %f - %s\n", finalMean, inputFile);
+    if (!quietMode) {
+      printf("pointless alpha - mean: %f - %s\n", finalMean, inputFile);
+    } else {
+      printf("%s ", inputFile);
+    }
+
     if (outputFile != NULL && !simulatedRun) {
       // Deactivate alpha channel.
       vips_flatten(imageIn, &imageOut, 0, NULL);
