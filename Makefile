@@ -3,7 +3,7 @@
 CFLAGS = -c -std=c11 -Wall -Wextra -Wpedantic $(shell pkg-config vips --cflags)
 LDFLAGS = $(shell pkg-config vips --libs)
 
-SOURCES = src/main.c
+SOURCES = src/main.c src/util.c src/alpha.c src/grayscale.c
 OBJECTS = $(SOURCES:.c=.o)
 EXECUTABLE = fargo
 

@@ -1,5 +1,5 @@
 /*
-    fargo - Removes unseeable and ghost alpha from PNG images, optimized.
+    fargo - Removes unseeable or ghost channels from PNG images, optimized.
     Copyright 2017 Daemon Lee Schmidt
 
     This program is free software: you can redistribute it and/or modify
@@ -22,24 +22,28 @@
 #define DEFAULTTHRESHOLDFACTOR 0.975
 #endif
 
-#include <stdbool.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <unistd.h>
 
-int displayHelp(char **argv);
+#include "alpha.h"
+#include "grayscale.h"
+#include "util.h"
 
 int main(int argc, char **argv) {
   int opt = 0;
   char *inputFile = NULL;
   char *outputFile = NULL;
+
+  bool grayscaleTesting = false;
+  bool imageIsGray = false;
+  bool imageHasAlpha = false;
+
   bool clobber = false;
   bool simulatedRun = false;
   bool verbose = false;
   bool quietMode = false;
   double thresholdFactor = DEFAULTTHRESHOLDFACTOR;
 
-  while ((opt = getopt(argc, argv, ":i:o:f:hvcsq")) != -1) {
+  while ((opt = getopt(argc, argv, ":i:o:f:ghvcsq")) != -1) {
     switch (opt) {
     case 'i':
       inputFile = optarg;
@@ -49,6 +53,13 @@ int main(int argc, char **argv) {
       break;
     case 'f':
       thresholdFactor = strtod(optarg, NULL);
+      if (thresholdFactor > 1 || thresholdFactor < 0) {
+        printf("Threshold factor has to be in between 0 and 1!\n");
+        exit(-1);
+      }
+      break;
+    case 'g':
+      grayscaleTesting = true;
       break;
     case 'h':
       displayHelp(argv);
@@ -71,38 +82,32 @@ int main(int argc, char **argv) {
     }
   }
 
-  if (inputFile == NULL) {
+  if (inputFile == NULL)
     displayHelp(argv);
-  }
-
-  if (thresholdFactor > 1 || thresholdFactor < 0) {
-    printf("Threshold factor has to be in between 0 and 1!\n");
-    exit(-1);
-  }
-
-  if (clobber) {
+  if (clobber)
     outputFile = inputFile;
-  }
 
   if (verbose) {
-    printf("Verbose mode on!\n");
-    printf("Input File: %s\n", inputFile);
-    printf("Output File: %s\n", outputFile);
-    printf("Threshold Factor: %f\n", thresholdFactor);
+    printf("Input File: %s\n"
+           "Output File: %s\n"
+           "Threshold Factor: %f\n",
+           inputFile, outputFile, thresholdFactor);
 
-    if (simulatedRun) {
+    if (grayscaleTesting)
+      printf("Grayscale testing on!\n");
+
+    if (simulatedRun)
       printf("Simulated run on!\n");
-    }
-    if (clobber) {
+
+    if (clobber)
       printf("Clobber on!\n");
-    }
   }
 
   VipsImage *imageIn = NULL;
-  VipsImage *alphaChannel = NULL;
   VipsImage *imageOut = NULL;
+  VipsImage *imageTemp = NULL;
   double finalMean = 0.0; // ૮( ᵒ̌皿ᵒ̌ )ა
-  VipsInterpretation imInter = 0;
+  bool imageChanged = false;
 
   // Start vips
   if (VIPS_INIT(argv[0]))
@@ -112,87 +117,59 @@ int main(int argc, char **argv) {
   if (!(imageIn = vips_image_new_from_file(inputFile, NULL)))
     vips_error_exit(NULL);
 
+  // Test for gray-ness if flag is enabled
+  if (grayscaleTesting && isBasicallyGrayImage(imageIn)) {
+    imageIsGray = true;
+    if (stripToGrayscale(imageIn, &imageTemp))
+      vips_copy(imageTemp, &imageIn, NULL);
+    g_object_unref(imageTemp);
+    vips_copy(imageIn, &imageOut, NULL);
+    imageChanged = true;
+  }
+
   // Check if it even has an Alpha
-  if (!vips_image_hasalpha(imageIn)) {
-    g_object_unref(imageIn);
-    exit(0);
+  if (vips_image_hasalpha(imageIn)) {
+    imageHasAlpha = true;
+    finalMean = getMeanAlpha(imageIn);
   }
 
-  imInter = vips_image_get_interpretation(imageIn);
-  switch (imInter) {
-  case VIPS_INTERPRETATION_sRGB:
-  case VIPS_INTERPRETATION_scRGB:
-    vips_extract_band(imageIn, &alphaChannel, 3, NULL);
-    vips_avg(alphaChannel, &finalMean, NULL);
-    finalMean = finalMean / 255;
-    break;
-  case VIPS_INTERPRETATION_B_W:
-    vips_extract_band(imageIn, &alphaChannel, 1, NULL);
-    vips_avg(alphaChannel, &finalMean, NULL);
-    finalMean = finalMean / 255;
-    break;
-  case VIPS_INTERPRETATION_RGB16:
-    vips_extract_band(imageIn, &alphaChannel, 3, NULL);
-    vips_avg(alphaChannel, &finalMean, NULL);
-    finalMean = finalMean / 65536;
-    break;
-  case VIPS_INTERPRETATION_GREY16:
-    vips_extract_band(imageIn, &alphaChannel, 1, NULL);
-    vips_avg(alphaChannel, &finalMean, NULL);
-    finalMean = finalMean / 65536;
-    break;
-  default:
-    exit(-1);
-    break;
-  }
-
-  // Done with the alpha channel
-  g_object_unref(alphaChannel);
-
-  if (finalMean == 1) {
-    if (!quietMode)
-      printf("empty alpha, removing - %s\n", inputFile);
-    if (!simulatedRun) {
-      // Deactivate alpha channel.
-      vips_flatten(imageIn, &imageOut, 0, NULL);
-
-      // Write the cleaned image to disk.
-      if (vips_image_write_to_file(imageOut, outputFile, NULL))
-        vips_error_exit(NULL);
-      g_object_unref(imageOut);
-    }
-  } else if (finalMean > thresholdFactor) {
-    if (!quietMode) {
-      printf("pointless alpha - mean: %f - %s\n", finalMean, inputFile);
+  if (imageHasAlpha) {
+    if (finalMean == 1 && !quietMode) {
+      printf("empty alpha (removing) - ");
+    } else if (finalMean > thresholdFactor && !quietMode) {
+      printf("pointless alpha - mean: %f - ", finalMean);
     } else {
-      printf("%s ", inputFile);
+      printf("needed alpha - mean: %f - ", finalMean);
     }
+  }
 
-    if (outputFile != NULL && !simulatedRun) {
-      // Deactivate alpha channel.
-      vips_flatten(imageIn, &imageOut, 0, NULL);
+  if (imageIsGray)
+    printf("unneeded RGB - ");
 
-      // Write the cleaned image to disk.
-      if (vips_image_write_to_file(imageOut, outputFile, NULL))
-        vips_error_exit(NULL);
-      g_object_unref(imageOut);
-    }
-  } else if (!quietMode) {
-    printf("needed alpha - mean: %f - %s\n", finalMean, inputFile);
+  if (imageHasAlpha || imageIsGray)
+    printf("%s\n", inputFile);
+
+  if (finalMean == 1 && !simulatedRun) {
+    vips_flatten(imageIn, &imageOut, 0, NULL);
+    imageChanged = true;
+    outputFile = inputFile;
+  } else if (finalMean > thresholdFactor) {
+    // Deactivate alpha channel.
+    vips_flatten(imageIn, &imageOut, 0, NULL);
+    imageChanged = true;
+  }
+
+  // Write the cleaned image to disk.
+  if (imageChanged && outputFile != NULL && !simulatedRun) {
+    if (vips_image_write_to_file(imageOut, outputFile, NULL))
+      vips_error_exit(NULL);
   }
 
   // Clean up
+  if (imageOut != NULL)
+    g_object_unref(imageOut);
   g_object_unref(imageIn);
   vips_shutdown();
 
   return 0;
-}
-
-int displayHelp(char **argv) {
-  fprintf(
-      stderr,
-      "Usage: %s [-h -v -c -s -q] -i image.png -o output.png\nSee 'man fargo' "
-      "for more information.\n",
-      argv[0]);
-  exit(0);
 }
