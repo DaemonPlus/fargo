@@ -136,7 +136,7 @@ int main(int argc, char **argv) {
   if (imageHasAlpha) {
     if (finalMean == 1 && !quietMode) {
       printf("empty alpha (removing) - ");
-    } else if (finalMean > thresholdFactor && !quietMode) {
+    } else if (finalMean > thresholdFactor) {
       printf("pointless alpha - mean: %f - ", finalMean);
     } else {
       printf("needed alpha - mean: %f - ", finalMean);
